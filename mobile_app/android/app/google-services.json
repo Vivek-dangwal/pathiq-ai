@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "568324793355",
+    "project_id": "pathiq-ai",
+    "storage_bucket": "pathiq-ai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:568324793355:android:7bc46609e00a8d7222530e",
+        "android_client_info": {
+          "package_name": "com.example.mobile_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC9gOSqLgkkWtJRtpq1uuYobksF_O680HA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
