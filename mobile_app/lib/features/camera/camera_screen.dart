@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -13,6 +14,11 @@ class _CameraScreenState extends State<CameraScreen> {
   CameraController? _controller;
   bool _permissionDenied = false;
   String _status = 'Requesting camera permission...';
+
+  // Frame throttling: process at ~10 FPS instead of every camera frame
+  static const int targetFps = 10;
+  DateTime _lastFrameProcessed = DateTime.fromMillisecondsSinceEpoch(0);
+  int _framesProcessedCount = 0;
 
   @override
   void initState() {
@@ -50,19 +56,45 @@ class _CameraScreenState extends State<CameraScreen> {
       );
 
       await controller.initialize();
-
       if (!mounted) return;
+
+      // Start the image stream; we throttle inside the callback below
+      await controller.startImageStream(_onFrameAvailable);
+
       setState(() {
         _controller = controller;
-        _status = 'Camera ready';
+        _status = 'Camera ready — throttled to ~$targetFps FPS';
       });
     } catch (e) {
       setState(() => _status = 'Camera error: $e');
     }
   }
 
+  void _onFrameAvailable(CameraImage image) {
+    final now = DateTime.now();
+    final msSinceLastFrame = now.difference(_lastFrameProcessed).inMilliseconds;
+    final minIntervalMs = (1000 / targetFps).round();
+
+    if (msSinceLastFrame < minIntervalMs) {
+      // Skip this frame — too soon since the last processed one
+      return;
+    }
+
+    _lastFrameProcessed = now;
+    _framesProcessedCount++;
+
+    // This is where inference will run in Milestone M3.
+    // For now we just count throttled frames to prove the mechanism works.
+    if (mounted) {
+      setState(() {
+        _status = 'Camera ready — frames processed: $_framesProcessedCount (~$targetFps FPS target)';
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _controller?.stopImageStream();
     _controller?.dispose();
     super.dispose();
   }
@@ -89,6 +121,24 @@ class _CameraScreenState extends State<CameraScreen> {
       return Center(child: Text(_status));
     }
 
-    return CameraPreview(_controller!);
+    return Stack(
+      children: [
+        CameraPreview(_controller!),
+        Positioned(
+          bottom: 16,
+          left: 16,
+          right: 16,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            color: Colors.black54,
+            child: Text(
+              _status,
+              style: const TextStyle(color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
