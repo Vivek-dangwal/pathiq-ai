@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'firebase_options.dart';
 import 'service_locator.dart';
+import 'features/camera/camera_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +25,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/',
       builder: (context, state) => const HomePage(),
+    ),
+    GoRoute(
+      path: '/camera',
+      builder: (context, state) => const CameraScreen(),
     ),
   ],
 );
@@ -46,8 +51,13 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('PathIQ AI — Milestone M1 Base')),
+    return Scaffold(
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () => context.go('/camera'),
+          child: const Text('Open Camera'),
+        ),
+      ),
     );
   }
 }
