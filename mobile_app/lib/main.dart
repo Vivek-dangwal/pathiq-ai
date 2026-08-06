@@ -6,6 +6,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'firebase_options.dart';
 import 'service_locator.dart';
 import 'features/camera/camera_screen.dart';
+import 'features/camera/foreground_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +17,7 @@ void main() async {
   FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
 
   setupServiceLocator();
+  initForegroundTask();
 
   runApp(const ProviderScope(child: MyApp()));
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'foreground_service.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -10,12 +11,11 @@ class CameraScreen extends StatefulWidget {
   State<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends State<CameraScreen> {
+class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver {
   CameraController? _controller;
   bool _permissionDenied = false;
   String _status = 'Requesting camera permission...';
 
-  // Frame throttling: process at ~10 FPS instead of every camera frame
   static const int targetFps = 10;
   DateTime _lastFrameProcessed = DateTime.fromMillisecondsSinceEpoch(0);
   int _framesProcessedCount = 0;
@@ -23,7 +23,24 @@ class _CameraScreenState extends State<CameraScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _setup();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      if (controller.value.isStreamingImages) {
+        controller.stopImageStream();
+      }
+      setState(() => _status = 'App backgrounded — camera stream paused (service still alive)');
+    } else if (state == AppLifecycleState.resumed) {
+      controller.startImageStream(_onFrameAvailable);
+      setState(() => _status = 'Camera ready — throttled to ~$targetFps FPS');
+    }
   }
 
   Future<void> _setup() async {
@@ -58,7 +75,6 @@ class _CameraScreenState extends State<CameraScreen> {
       await controller.initialize();
       if (!mounted) return;
 
-      // Start the image stream; we throttle inside the callback below
       await controller.startImageStream(_onFrameAvailable);
 
       setState(() {
@@ -76,15 +92,12 @@ class _CameraScreenState extends State<CameraScreen> {
     final minIntervalMs = (1000 / targetFps).round();
 
     if (msSinceLastFrame < minIntervalMs) {
-      // Skip this frame — too soon since the last processed one
       return;
     }
 
     _lastFrameProcessed = now;
     _framesProcessedCount++;
 
-    // This is where inference will run in Milestone M3.
-    // For now we just count throttled frames to prove the mechanism works.
     if (mounted) {
       setState(() {
         _status = 'Camera ready — frames processed: $_framesProcessedCount (~$targetFps FPS target)';
@@ -94,6 +107,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller?.stopImageStream();
     _controller?.dispose();
     super.dispose();
@@ -128,14 +142,52 @@ class _CameraScreenState extends State<CameraScreen> {
           bottom: 16,
           left: 16,
           right: 16,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            color: Colors.black54,
-            child: Text(
-              _status,
-              style: const TextStyle(color: Colors.white),
-              textAlign: TextAlign.center,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ElevatedButton(
+                    onPressed: () async {
+                      final notifStatus = await Permission.notification.request();
+                      if (!notifStatus.isGranted) {
+                        setState(() => _status = 'Notification permission denied — service notification may not show.');
+                      }
+                      final started = await startForegroundTask();
+                      setState(() {
+                        _status = started
+                            ? 'Background service started successfully'
+                            : 'Failed to start background service';
+                      });
+                    },
+                    child: const Text('Start Service'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final stopped = await stopForegroundTask();
+                      setState(() {
+                        _status = stopped ? 'Background service stopped' : 'Failed to stop service';
+                      });
+                    },
+                    child: const Text('Stop Service'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                color: Colors.black54,
+                width: double.infinity,
+                child: Text(
+                  _status,
+                  style: const TextStyle(color: Colors.white),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
           ),
         ),
       ],
